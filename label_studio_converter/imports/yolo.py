@@ -25,6 +25,7 @@ def convert_yolo_to_ls(
     image_root_url='/data/local-files/?d=',
     image_ext='.jpg,.jpeg,.png',
     image_dims: Optional[Tuple[int, int]] = None,
+    storage='s3'
 ):
     """Convert YOLO labeling to Label Studio JSON
     :param input_dir: directory with YOLO where images, labels, notes.json are located
@@ -139,11 +140,11 @@ def convert_yolo_to_ls(
         tasks.append(task)
 
     if len(tasks) > 0:
-        logger.info('Saving Label Studio JSON to %s', out_file)
-        with open(out_file, 'w') as out:
-            json.dump(tasks, out)
-
-        print(
+        if storage=='local':
+            logger.info('Saving Label Studio JSON to %s', out_file)
+            with open(out_file, 'w') as out:
+                json.dump(tasks, out)
+            print(
             '\n'
             f'  1. Create a new project in Label Studio\n'
             f'  2. Use Labeling Config from "{label_config_file}"\n'
@@ -151,8 +152,21 @@ def convert_yolo_to_ls(
             f'     https://labelstud.io/guide/storage.html#Local-storage]\n'
             f'  4. Import "{out_file}" to the project\n'
         )
-    else:
-        logger.error('No labels converted')
+        else:
+            logger.info('Saving Label Studio JSONs to %s', out_file)
+            os.makedirs(out_file, exist_ok=True)
+            for i, v in enumerate(tasks):
+                with open(os.path.join(out_file,f'task_{i}.json'), 'w') as f:
+                    json.dump(v, f)
+            print(
+            '\n'
+            f'  1. Create a new project in Label Studio\n'
+            f'  2. Use Labeling Config from "{label_config_file}"\n'
+            f'  3. Setup serving for images [e.g. you can use Local Storage (or others):\n'
+            f'     https://labelstud.io/guide/storage#How-external-storage-connections-and-sync-work]\n'
+            f'  4. Import "{out_file}" to the                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           \n'
+        )
+
 
 
 def add_parser(subparsers):
@@ -217,4 +231,11 @@ def add_parser(subparsers):
             "if all your images are of dimensions width=600, height=800"
         ),
         default=None,
+    )
+    yolo.add_argument(
+        '-s',
+        '--storage',
+        dest='storage',
+        help='string denoting the storage backend for label studio - (local, s3, abs, gcs)',
+        default='local',
     )

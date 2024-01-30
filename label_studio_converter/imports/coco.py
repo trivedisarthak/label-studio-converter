@@ -114,17 +114,19 @@ def convert_coco_to_ls(
     image_root_url='/data/local-files/?d=',
     use_super_categories=False,
     point_width=1.0,
+    storage='s3'
 ):
     """Convert COCO labeling to Label Studio JSON
 
     :param input_file: file with COCO json
-    :param out_file: output file with Label Studio JSON tasks
+    :param out_file: output file with Label Studio JSON tasks, if the backend is other than local please pass in a folder name
     :param to_name: object name from Label Studio labeling config
     :param from_name: control tag name from Label Studio labeling config
     :param out_type: annotation type - "annotations" or "predictions"
     :param image_root_url: root URL path where images will be hosted, e.g.: http://example.com/images
     :param use_super_categories: use super categories from categories if they are presented
     :param point_width: key point width
+    :param storage: string denoting the storage backend for label studio - (local, s3, abs, gcs)
     """
 
     tasks = {}  # image_id => task
@@ -204,7 +206,7 @@ def convert_coco_to_ls(
 
         task = tasks[image_id]
 
-        if 'bbox' in annotation:
+        if 'bbox' in annotation and len(annotation['bbox'])>0:
             item = create_bbox(
                 annotation,
                 categories,
@@ -215,7 +217,7 @@ def convert_coco_to_ls(
             )
             task[out_type][0]['result'].append(item)
 
-        if 'segmentation' in annotation:
+        if 'segmentation' in annotation and len(annotation['segmentation'])>0:
             item = create_segmentation(
                 annotation,
                 categories,
@@ -226,7 +228,7 @@ def convert_coco_to_ls(
             )
             task[out_type][0]['result'].append(item)
 
-        if 'keypoints' in annotation:
+        if 'keypoints' in annotation and len(annotation['keypoints'])>0:
             items = create_keypoints(
                 annotation,
                 categories,
@@ -246,11 +248,11 @@ def convert_coco_to_ls(
 
     if len(tasks) > 0:
         tasks = [tasks[key] for key in sorted(tasks.keys())]
-        logger.info('Saving Label Studio JSON to %s', out_file)
-        with open(out_file, 'w') as out:
-            json.dump(tasks, out)
-
-        print(
+        if storage=='local':
+            logger.info('Saving Label Studio JSON to %s', out_file)
+            with open(out_file, 'w') as out:
+                json.dump(tasks, out)
+            print(
             '\n'
             f'  1. Create a new project in Label Studio\n'
             f'  2. Use Labeling Config from "{label_config_file}"\n'
@@ -258,6 +260,21 @@ def convert_coco_to_ls(
             f'     https://labelstud.io/guide/storage.html#Local-storage]\n'
             f'  4. Import "{out_file}" to the project\n'
         )
+        else:
+            logger.info('Saving Label Studio JSONs to %s', out_file)
+            os.makedirs(out_file, exist_ok=True)
+            for i, v in enumerate(tasks):
+                with open(os.path.join(out_file,f'task_{i}.json'), 'w') as f:
+                    json.dump(v, f)
+            print(
+            '\n'
+            f'  1. Create a new project in Label Studio\n'
+            f'  2. Use Labeling Config from "{label_config_file}"\n'
+            f'  3. Setup serving for images [e.g. you can use Local Storage (or others):\n'
+            f'     https://labelstud.io/guide/storage#How-external-storage-connections-and-sync-work]\n'
+            f'  4. Import "{out_file}" to the                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           \n'
+        )
+
     else:
         logger.error('No labels converted')
 
@@ -311,4 +328,11 @@ def add_parser(subparsers):
         help='key point width (size)',
         default=1.0,
         type=float,
+    )
+    coco.add_argument(
+        '-s',
+        '--storage',
+        dest='storage',
+        help='string denoting the storage backend for label studio - (local, s3, abs, gcs)',
+        default='local',
     )
